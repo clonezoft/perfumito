@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
         <!-- Firebase SDK -->
         <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
         <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -433,11 +434,13 @@
                 });
         }
                 // Data storage
-                let products = JSON.parse(localStorage.getItem('products')) || [];
-                let customers = JSON.parse(localStorage.getItem('customers')) || [];
-                let sales = JSON.parse(localStorage.getItem('sales')) || [];
-                let orders = JSON.parse(localStorage.getItem('orders')) || [];
-                let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
+            let products = [];
+    // Inicializa Firestore
+    const db = firebase.firestore();
+            let customers = [];
+            let sales = [];
+            let orders = [];
+            let inventory = [];
                 // Firebase config
                 const firebaseConfig = {
                     apiKey: "AIzaSyCQvq350TNtEPQz2rJGsJ2kjEymLqxn5FE",
@@ -747,57 +750,62 @@
             const name = document.getElementById('productName').value;
             const cost = parseFloat(document.getElementById('productCost').value);
             const price = parseFloat(document.getElementById('productPrice').value);
-            
-            products.push({ id: Date.now(), name, cost, price });
-            localStorage.setItem('products', JSON.stringify(products));
-            
-            // Agregar automáticamente al inventario con 0ml
-            const existingInventory = inventory.find(item => item.product === name);
-            if (!existingInventory) {
-                inventory.push({ product: name, ml: 0, minStock: 10 });
-                localStorage.setItem('inventory', JSON.stringify(inventory));
-            }
-            
-            document.getElementById('productName').value = '';
-            document.getElementById('productCost').value = '';
-            document.getElementById('productPrice').value = '';
-            
-            loadProducts();
-            loadInventory();
-            updateProductSelects();
-            updateInventorySelects();
-            showNotification('Producto agregado exitosamente');
+            db.collection("products").add({
+                name: name,
+                cost: cost,
+                price: price
+            })
+            .then(() => {
+                document.getElementById('productName').value = '';
+                document.getElementById('productCost').value = '';
+                document.getElementById('productPrice').value = '';
+                loadProducts();
+                showNotification('Producto agregado exitosamente');
+            })
+            .catch((error) => {
+                showNotification('Error al agregar producto: ' + error);
+            });
         }
 
         function loadProducts() {
-            const table = document.getElementById('productsTable');
-            table.innerHTML = '';
-            products.forEach(product => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="py-2">${product.name}</td>
-                    <td class="py-2">$${Math.round(product.cost).toLocaleString()}</td>
-                    <td class="py-2">$${Math.round(product.price).toLocaleString()}</td>
-                    <td class="py-2">
-                        <button onclick="editProduct(${product.id})" class="text-blue-400 hover:text-blue-300 mr-2">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button onclick="deleteProduct(${product.id})" class="text-red-400 hover:text-red-300">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-                table.appendChild(row);
+            db.collection("products").get().then((querySnapshot) => {
+                products = [];
+                const table = document.getElementById('productsTable');
+                table.innerHTML = '';
+                querySnapshot.forEach((doc) => {
+                    const product = { id: doc.id, ...doc.data() };
+                    products.push(product);
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="py-2">${product.name}</td>
+                        <td class="py-2">$${Math.round(product.cost).toLocaleString()}</td>
+                        <td class="py-2">$${Math.round(product.price).toLocaleString()}</td>
+                        <td class="py-2">
+                            <button onclick="editProduct('${product.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="deleteProduct('${product.id}')" class="text-red-400 hover:text-red-300">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    table.appendChild(row);
+                });
+                updateProductSelects();
+                updateInventorySelects();
             });
         }
 
         function deleteProduct(id) {
             if (confirm('¿Estás seguro de eliminar este producto?')) {
-                products = products.filter(p => p.id !== id);
-                localStorage.setItem('products', JSON.stringify(products));
-                loadProducts();
-                updateProductSelects();
-                showNotification('Producto eliminado');
+                db.collection("products").doc(id).delete()
+                .then(() => {
+                    loadProducts();
+                    showNotification('Producto eliminado');
+                })
+                .catch((error) => {
+                    showNotification('Error al eliminar producto: ' + error);
+                });
             }
         }
 
@@ -805,20 +813,17 @@
         function addSale(e) {
             e.preventDefault();
             const productName = document.getElementById('saleProduct').value;
-            const customerId = parseInt(document.getElementById('saleCustomer').value);
+            const customerId = document.getElementById('saleCustomer').value;
             const paymentMethod = document.getElementById('paymentMethod').value;
-            
             const product = products.find(p => p.name === productName);
             let total = product.price;
-            
+            let saleData = {};
             if (paymentMethod === 'credit') {
                 const months = parseInt(document.getElementById('months').value);
                 const interestRate = parseFloat(document.getElementById('interestRate').value);
                 total = product.price * (1 + (interestRate / 100));
-                
                 const advancePayment = parseFloat(document.getElementById('advancePayment').value) || 0;
-                const sale = {
-                    id: Date.now(),
+                saleData = {
                     product: productName,
                     customerId,
                     paymentMethod,
@@ -829,128 +834,131 @@
                     remaining: Math.max(0, total - advancePayment),
                     advancePayment: advancePayment
                 };
-                
-                sales.push(sale);
             } else {
-                sales.push({
-                    id: Date.now(),
+                saleData = {
                     product: productName,
                     customerId,
                     paymentMethod,
                     total,
                     date: new Date().toISOString(),
                     paid: true
-                });
+                };
             }
-            
-            // Descontar 30ml del inventario
-            updateInventory(productName, 30);
-            
-            localStorage.setItem('sales', JSON.stringify(sales));
-            
-            // Reset form
-            document.getElementById('saleProduct').value = '';
-            document.getElementById('saleCustomer').value = '';
-            document.getElementById('paymentMethod').value = 'cash';
-            document.getElementById('months').value = '';
-            document.getElementById('interestRate').value = '';
-            toggleCreditFields();
-            
-            loadSales();
-            loadDashboard();
-            showNotification('Venta registrada exitosamente');
+            db.collection("sales").add(saleData)
+            .then(() => {
+                document.getElementById('saleProduct').value = '';
+                document.getElementById('saleCustomer').value = '';
+                document.getElementById('paymentMethod').value = 'cash';
+                document.getElementById('months').value = '';
+                document.getElementById('interestRate').value = '';
+                toggleCreditFields();
+                loadSales();
+                loadDashboard();
+                showNotification('Venta registrada exitosamente');
+            })
+            .catch((error) => {
+                showNotification('Error al registrar venta: ' + error);
+            });
         }
 
         function loadSales() {
-            const table = document.getElementById('salesTable');
-            table.innerHTML = '';
-            sales.forEach(sale => {
-                const customer = customers.find(c => c.id === sale.customerId);
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="py-2">${new Date(sale.date).toLocaleDateString()}</td>
-                    <td class="py-2">${sale.product}</td>
-                    <td class="py-2">${customer?.name || 'Cliente'}</td>
-                    <td class="py-2">
-                        <span class="px-2 py-1 rounded text-sm ${sale.paymentMethod === 'credit' ? 'bg-yellow-500/20' : 'bg-green-500/20'}">
-                            ${sale.paymentMethod === 'credit' ? 'Crédito' : 'Efectivo'}
-                        </span>
-                    </td>
-                    <td class="py-2">
-                        ${sale.paymentMethod === 'credit' && sale.advancePayment ? Math.round(sale.advancePayment).toLocaleString() : '-'}
-                    </td>
-                    <td class="py-2">
-                        ${sale.paymentMethod === 'credit' && sale.remaining ? Math.round(sale.remaining).toLocaleString() : '-'}
-                        ${sale.paymentMethod === 'credit' && sale.remaining && sale.remaining > 0 ? 
-                            `<button onclick="markAsPaid(${sale.id})" class="ml-2 text-green-400 hover:text-green-300">
-                                <i class="fas fa-money-bill-wave"></i>
-                            </button>` : ''}
-                    </td>
-                    <td class="py-2">${Math.round(sale.total).toLocaleString()}</td>
-                    <td class="py-2">
-                        <button onclick="returnSale(${sale.id})" class="text-red-400 hover:text-red-300">
-                            <i class="fas fa-undo"></i>
-                        </button>
-                    </td>
-                `;
-                table.appendChild(row);
+            db.collection("sales").get().then((querySnapshot) => {
+                sales = [];
+                const table = document.getElementById('salesTable');
+                table.innerHTML = '';
+                querySnapshot.forEach((doc) => {
+                    const sale = { id: doc.id, ...doc.data() };
+                    sales.push(sale);
+                    const customer = customers.find(c => c.id === sale.customerId);
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="py-2">${new Date(sale.date).toLocaleDateString()}</td>
+                        <td class="py-2">${sale.product}</td>
+                        <td class="py-2">${customer?.name || 'Cliente'}</td>
+                        <td class="py-2">
+                            <span class="px-2 py-1 rounded text-sm ${sale.paymentMethod === 'credit' ? 'bg-yellow-500/20' : 'bg-green-500/20'}">
+                                ${sale.paymentMethod === 'credit' ? 'Crédito' : 'Efectivo'}
+                            </span>
+                        </td>
+                        <td class="py-2">
+                            ${sale.paymentMethod === 'credit' && sale.advancePayment ? Math.round(sale.advancePayment).toLocaleString() : '-'}
+                        </td>
+                        <td class="py-2">
+                            ${sale.paymentMethod === 'credit' && sale.remaining ? Math.round(sale.remaining).toLocaleString() : '-'}
+                            ${sale.paymentMethod === 'credit' && sale.remaining && sale.remaining > 0 ? 
+                                `<button onclick="markAsPaid('${sale.id}')" class="ml-2 text-green-400 hover:text-green-300">
+                                    <i class="fas fa-money-bill-wave"></i>
+                                </button>` : ''}
+                        </td>
+                        <td class="py-2">${Math.round(sale.total).toLocaleString()}</td>
+                        <td class="py-2">
+                            <button onclick="returnSale('${sale.id}')" class="text-red-400 hover:text-red-300">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                        </td>
+                    `;
+                    table.appendChild(row);
+                });
             });
         }
 
         // Orders
         function addOrder(e) {
             e.preventDefault();
-            const order = {
-                id: Date.now(),
+            const orderData = {
                 product: document.getElementById('orderProduct').value,
-                customerId: parseInt(document.getElementById('orderCustomer').value),
+                customerId: document.getElementById('orderCustomer').value,
                 advance: parseFloat(document.getElementById('orderAdvance').value),
                 deliveryDate: document.getElementById('orderDate').value,
                 status: 'pendiente'
             };
-            
-            orders.push(order);
-            localStorage.setItem('orders', JSON.stringify(orders));
-            
-            // Reset form
-            document.getElementById('orderProduct').value = '';
-            document.getElementById('orderCustomer').value = '';
-            document.getElementById('orderAdvance').value = '';
-            document.getElementById('orderDate').value = '';
-            
-            loadOrders();
-            updateProductSelects();
-            showNotification('Encargo registrado exitosamente');
+            db.collection("orders").add(orderData)
+            .then(() => {
+                document.getElementById('orderProduct').value = '';
+                document.getElementById('orderCustomer').value = '';
+                document.getElementById('orderAdvance').value = '';
+                document.getElementById('orderDate').value = '';
+                loadOrders();
+                showNotification('Encargo registrado exitosamente');
+            })
+            .catch((error) => {
+                showNotification('Error al registrar encargo: ' + error);
+            });
         }
 
         function loadOrders() {
-            const table = document.getElementById('ordersTable');
-            table.innerHTML = '';
-            orders.forEach(order => {
-                const customer = customers.find(c => c.id === order.customerId);
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="py-2">${order.product}</td>
-                    <td class="py-2">${customer?.name || 'Cliente'}</td>
-                    <td class="py-2">${new Date(order.deliveryDate).toLocaleDateString()}</td>
-                    <td class="py-2">
-                        <span class="px-2 py-1 rounded text-sm ${order.status === 'pendiente' ? 'bg-yellow-500/20' : 'bg-green-500/20'}">
-                            ${order.status}
-                        </span>
-                    </td>
-                    <td class="py-2">
-                        <button onclick="editOrder(${order.id})" class="text-blue-400 hover:text-blue-300 mr-2">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button onclick="completeOrder(${order.id})" class="text-green-400 hover:text-green-300 mr-2">
-                            <i class="fas fa-check"></i>
-                        </button>
-                        <button onclick="deleteOrder(${order.id})" class="text-red-400 hover:text-red-300">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-                table.appendChild(row);
+            db.collection("orders").get().then((querySnapshot) => {
+                orders = [];
+                const table = document.getElementById('ordersTable');
+                table.innerHTML = '';
+                querySnapshot.forEach((doc) => {
+                    const order = { id: doc.id, ...doc.data() };
+                    orders.push(order);
+                    const customer = customers.find(c => c.id === order.customerId);
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="py-2">${order.product}</td>
+                        <td class="py-2">${customer?.name || 'Cliente'}</td>
+                        <td class="py-2">${new Date(order.deliveryDate).toLocaleDateString()}</td>
+                        <td class="py-2">
+                            <span class="px-2 py-1 rounded text-sm ${order.status === 'pendiente' ? 'bg-yellow-500/20' : 'bg-green-500/20'}">
+                                ${order.status}
+                            </span>
+                        </td>
+                        <td class="py-2">
+                            <button onclick="editOrder('${order.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="completeOrder('${order.id}')" class="text-green-400 hover:text-green-300 mr-2">
+                                <i class="fas fa-check"></i>
+                            </button>
+                            <button onclick="deleteOrder('${order.id}')" class="text-red-400 hover:text-red-300">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    table.appendChild(row);
+                });
             });
         }
 
@@ -989,10 +997,14 @@
 
         function deleteOrder(id) {
             if (confirm('¿Estás seguro de eliminar este encargo?')) {
-                orders = orders.filter(o => o.id !== id);
-                localStorage.setItem('orders', JSON.stringify(orders));
-                loadOrders();
-                showNotification('Encargo eliminado');
+                db.collection("orders").doc(id).delete()
+                .then(() => {
+                    loadOrders();
+                    showNotification('Encargo eliminado');
+                })
+                .catch((error) => {
+                    showNotification('Error al eliminar encargo: ' + error);
+                });
             }
         }
 
@@ -1003,54 +1015,61 @@
             if (!phone.startsWith('+57')) {
                 phone = '+57' + phone.replace(/^0+/, '');
             }
-            const customer = {
-                id: Date.now(),
+            db.collection("customers").add({
                 name: document.getElementById('customerName').value,
                 phone: phone
-            };
-            
-            customers.push(customer);
-            localStorage.setItem('customers', JSON.stringify(customers));
-            
-            document.getElementById('customerName').value = '';
-            document.getElementById('customerPhone').value = '+57';
-            
-            loadCustomers();
-            updateCustomerSelects();
-            showNotification('Cliente agregado exitosamente');
+            })
+            .then(() => {
+                document.getElementById('customerName').value = '';
+                document.getElementById('customerPhone').value = '+57';
+                loadCustomers();
+                showNotification('Cliente agregado exitosamente');
+            })
+            .catch((error) => {
+                showNotification('Error al agregar cliente: ' + error);
+            });
         }
 
         function loadCustomers() {
-            const table = document.getElementById('customersTable');
-            table.innerHTML = '';
-            customers.forEach(customer => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="py-2">${customer.name}</td>
-                    <td class="py-2">${customer.phone}</td>
-                    <td class="py-2">
-                        <button onclick="editCustomer(${customer.id})" class="text-blue-400 hover:text-blue-300 mr-2">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button onclick="sendWhatsapp(${customer.id})" class="text-green-400 hover:text-green-300 mr-2">
-                            <i class="fab fa-whatsapp"></i>
-                        </button>
-                        <button onclick="deleteCustomer(${customer.id})" class="text-red-400 hover:text-red-300">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-                table.appendChild(row);
+            db.collection("customers").get().then((querySnapshot) => {
+                customers = [];
+                const table = document.getElementById('customersTable');
+                table.innerHTML = '';
+                querySnapshot.forEach((doc) => {
+                    const customer = { id: doc.id, ...doc.data() };
+                    customers.push(customer);
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="py-2">${customer.name}</td>
+                        <td class="py-2">${customer.phone}</td>
+                        <td class="py-2">
+                            <button onclick="editCustomer('${customer.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="sendWhatsapp('${customer.id}')" class="text-green-400 hover:text-green-300 mr-2">
+                                <i class="fab fa-whatsapp"></i>
+                            </button>
+                            <button onclick="deleteCustomer('${customer.id}')" class="text-red-400 hover:text-red-300">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    table.appendChild(row);
+                });
+                updateCustomerSelects();
             });
         }
 
         function deleteCustomer(id) {
             if (confirm('¿Estás seguro de eliminar este cliente?')) {
-                customers = customers.filter(c => c.id !== id);
-                localStorage.setItem('customers', JSON.stringify(customers));
-                loadCustomers();
-                updateCustomerSelects();
-                showNotification('Cliente eliminado');
+                db.collection("customers").doc(id).delete()
+                .then(() => {
+                    loadCustomers();
+                    showNotification('Cliente eliminado');
+                })
+                .catch((error) => {
+                    showNotification('Error al eliminar cliente: ' + error);
+                });
             }
         }
 
@@ -1062,13 +1081,18 @@
             const newCost = prompt('Nuevo costo:', product.cost);
             const newPrice = prompt('Nuevo precio:', product.price);
             if (newName && newCost && newPrice) {
-                product.name = newName;
-                product.cost = parseFloat(newCost);
-                product.price = parseFloat(newPrice);
-                localStorage.setItem('products', JSON.stringify(products));
-                loadProducts();
-                updateProductSelects();
-                showNotification('Producto actualizado');
+                db.collection("products").doc(id).update({
+                    name: newName,
+                    cost: parseFloat(newCost),
+                    price: parseFloat(newPrice)
+                })
+                .then(() => {
+                    loadProducts();
+                    showNotification('Producto actualizado');
+                })
+                .catch((error) => {
+                    showNotification('Error al actualizar producto: ' + error);
+                });
             }
         }
 
@@ -1083,12 +1107,17 @@
                 if (!phoneEdit.startsWith('+57')) {
                     phoneEdit = '+57' + phoneEdit.replace(/^0+/, '');
                 }
-                customer.name = newName;
-                customer.phone = phoneEdit;
-                localStorage.setItem('customers', JSON.stringify(customers));
-                loadCustomers();
-                updateCustomerSelects();
-                showNotification('Cliente actualizado');
+                db.collection("customers").doc(id).update({
+                    name: newName,
+                    phone: phoneEdit
+                })
+                .then(() => {
+                    loadCustomers();
+                    showNotification('Cliente actualizado');
+                })
+                .catch((error) => {
+                    showNotification('Error al actualizar cliente: ' + error);
+                });
             }
         }
 
@@ -1101,13 +1130,19 @@
             const newAdvance = prompt('Nuevo anticipo:', order.advance);
             const newDate = prompt('Nueva fecha de entrega (YYYY-MM-DD):', order.deliveryDate);
             if (newProduct && newCustomerId && newAdvance && newDate) {
-                order.product = newProduct;
-                order.customerId = parseInt(newCustomerId);
-                order.advance = parseFloat(newAdvance);
-                order.deliveryDate = newDate;
-                localStorage.setItem('orders', JSON.stringify(orders));
-                loadOrders();
-                showNotification('Encargo actualizado');
+                db.collection("orders").doc(id).update({
+                    product: newProduct,
+                    customerId: newCustomerId,
+                    advance: parseFloat(newAdvance),
+                    deliveryDate: newDate
+                })
+                .then(() => {
+                    loadOrders();
+                    showNotification('Encargo actualizado');
+                })
+                .catch((error) => {
+                    showNotification('Error al actualizar encargo: ' + error);
+                });
             }
         }
 
@@ -1141,54 +1176,57 @@
             const productName = document.getElementById('inventoryProduct').value;
             const ml = parseInt(document.getElementById('inventoryMl').value);
             const minStock = parseInt(document.getElementById('inventoryMin').value);
-            
-            const existingItem = inventory.find(item => item.product === productName);
-            if (existingItem) {
-                existingItem.ml += ml;
-                existingItem.minStock = minStock;
-            } else {
-                inventory.push({ product: productName, ml, minStock });
-            }
-            
-            localStorage.setItem('inventory', JSON.stringify(inventory));
-            
-            document.getElementById('inventoryProduct').value = '';
-            document.getElementById('inventoryMl').value = '';
-            document.getElementById('inventoryMin').value = '';
-            
-            loadInventory();
-            updateInventorySelects();
-            showNotification('Inventario actualizado');
+            db.collection("inventory").add({
+                product: productName,
+                ml: ml,
+                minStock: minStock
+            })
+            .then(() => {
+                document.getElementById('inventoryProduct').value = '';
+                document.getElementById('inventoryMl').value = '';
+                document.getElementById('inventoryMin').value = '';
+                loadInventory();
+                showNotification('Inventario actualizado');
+            })
+            .catch((error) => {
+                showNotification('Error al agregar inventario: ' + error);
+            });
         }
 
         function loadInventory() {
-            const table = document.getElementById('inventoryTable');
-            table.innerHTML = '';
-            inventory.forEach(item => {
-                const row = document.createElement('tr');
-                const isLowStock = item.ml <= item.minStock;
-                row.innerHTML = `
-                    <td class="py-2">${item.product}</td>
-                    <td class="py-2">${item.ml} ml</td>
-                    <td class="py-2">${item.minStock} ml</td>
-                    <td class="py-2">
-                        <span class="px-2 py-1 rounded text-sm ${isLowStock ? 'bg-red-500/20' : 'bg-green-500/20'}">
-                            ${isLowStock ? 'Bajo stock' : 'Disponible'}
-                        </span>
-                    </td>
-                    <td class="py-2">
-                        <button onclick="editInventoryItem('${item.product}')" class="text-blue-400 hover:text-blue-300 mr-2">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button onclick="addStock('${item.product}')" class="text-green-400 hover:text-green-300 mr-2">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                        <button onclick="deleteInventoryItem('${item.product}')" class="text-red-400 hover:text-red-300">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-                table.appendChild(row);
+            db.collection("inventory").get().then((querySnapshot) => {
+                inventory = [];
+                const table = document.getElementById('inventoryTable');
+                table.innerHTML = '';
+                querySnapshot.forEach((doc) => {
+                    const item = { id: doc.id, ...doc.data() };
+                    inventory.push(item);
+                    const isLowStock = item.ml <= item.minStock;
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="py-2">${item.product}</td>
+                        <td class="py-2">${item.ml} ml</td>
+                        <td class="py-2">${item.minStock} ml</td>
+                        <td class="py-2">
+                            <span class="px-2 py-1 rounded text-sm ${isLowStock ? 'bg-red-500/20' : 'bg-green-500/20'}">
+                                ${isLowStock ? 'Bajo stock' : 'Disponible'}
+                            </span>
+                        </td>
+                        <td class="py-2">
+                            <button onclick="editInventoryItem('${item.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="addStock('${item.id}')" class="text-green-400 hover:text-green-300 mr-2">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button onclick="deleteInventoryItem('${item.id}')" class="text-red-400 hover:text-red-300">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    table.appendChild(row);
+                });
+                updateInventorySelects();
             });
         }
 
@@ -1200,39 +1238,55 @@
             }
         }
 
-        function editInventoryItem(productName) {
-            const item = inventory.find(i => i.product === productName);
+        function editInventoryItem(id) {
+            const item = inventory.find(i => i.id === id);
             if (!item) return;
             const newMl = prompt('Nueva cantidad (ml):', item.ml);
             const newMin = prompt('Nuevo stock mínimo (ml):', item.minStock);
             if (newMl && newMin) {
-                item.ml = parseInt(newMl);
-                item.minStock = parseInt(newMin);
-                localStorage.setItem('inventory', JSON.stringify(inventory));
-                loadInventory();
-                showNotification('Inventario actualizado');
+                db.collection("inventory").doc(id).update({
+                    ml: parseInt(newMl),
+                    minStock: parseInt(newMin)
+                })
+                .then(() => {
+                    loadInventory();
+                    showNotification('Inventario actualizado');
+                })
+                .catch((error) => {
+                    showNotification('Error al actualizar inventario: ' + error);
+                });
             }
         }
 
-        function addStock(productName) {
-            const item = inventory.find(i => i.product === productName);
+        function addStock(id) {
+            const item = inventory.find(i => i.id === id);
             if (item) {
                 const mlToAdd = prompt('Mililitros a agregar:', '100');
                 if (mlToAdd) {
-                    item.ml += parseInt(mlToAdd);
-                    localStorage.setItem('inventory', JSON.stringify(inventory));
-                    loadInventory();
-                    showNotification('Stock actualizado');
+                    db.collection("inventory").doc(id).update({
+                        ml: item.ml + parseInt(mlToAdd)
+                    })
+                    .then(() => {
+                        loadInventory();
+                        showNotification('Stock actualizado');
+                    })
+                    .catch((error) => {
+                        showNotification('Error al actualizar stock: ' + error);
+                    });
                 }
             }
         }
 
-        function deleteInventoryItem(productName) {
+        function deleteInventoryItem(id) {
             if (confirm('¿Estás seguro de eliminar este producto del inventario?')) {
-                inventory = inventory.filter(item => item.product !== productName);
-                localStorage.setItem('inventory', JSON.stringify(inventory));
-                loadInventory();
-                showNotification('Producto eliminado del inventario');
+                db.collection("inventory").doc(id).delete()
+                .then(() => {
+                    loadInventory();
+                    showNotification('Producto eliminado del inventario');
+                })
+                .catch((error) => {
+                    showNotification('Error al eliminar inventario: ' + error);
+                });
             }
         }
 
