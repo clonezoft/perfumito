@@ -5,12 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Perfumería Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- Firebase SDK: primero app, luego auth, luego firestore -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
         
@@ -70,46 +69,8 @@
     </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Login Section -->
-    <div id="loginSection" class="min-h-screen flex items-center justify-center">
-        <div class="glass-card rounded-2xl p-8 w-full max-w-md">
-            <h2 class="text-3xl font-bold text-white text-center mb-6">
-                <i class="fas fa-spray-can-sparkles mr-3"></i>
-                Perfumería Manager
-            </h2>
-            <form onsubmit="login(event)" class="space-y-4">
-                <div>
-                    <label class="text-white block mb-2">Usuario</label>
-                    <input type="text" id="username" required
-                        class="w-full px-4 py-2 rounded-lg bg-white/20 text-white placeholder-white/70 border border-white/30"
-                        placeholder="Ingrese su usuario">
-                </div>
-                <div>
-                    <label class="text-white block mb-2">Contraseña</label>
-                    <input type="password" id="password" required
-                        class="w-full px-4 py-2 rounded-lg bg-white/20 text-white placeholder-white/70 border border-white/30"
-                        placeholder="Ingrese su contraseña">
-                </div>
-                <button type="submit" 
-                    class="w-full bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-lg transition">
-                    <i class="fas fa-sign-in-alt mr-2"></i>Iniciar Sesión
-                </button>
-                <button type="button" onclick="register()"
-                    class="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg transition">
-                    <i class="fas fa-user-plus mr-2"></i>Registrarse
-                </button>
-                <button type="button" onclick="recoverPassword()"
-                    class="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg transition">
-                    <i class="fas fa-key mr-2"></i>¿Olvidaste tu contraseña?
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Main App (initially hidden) -->
-    <div id="appSection" class="hidden">
-        <div class="min-h-screen p-4">
-            <!-- Header -->
+    <div class="min-h-screen p-4">
+        <!-- Header -->
         <header class="glass-card rounded-2xl p-6 mb-6">
             <div class="flex flex-col md:flex-row justify-between items-center">
                 <div class="mb-4 md:mb-0">
@@ -379,7 +340,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input type="text" id="customerName" placeholder="Nombre completo" required
                             class="w-full px-4 py-2 rounded-lg bg-white/20 text-white placeholder-white/70 border border-white/30">
-                        <input type="tel" id="customerPhone" placeholder="Teléfono WhatsApp" required
+                        <input type="tel" id="customerPhone" placeholder="Teléfono WhatsApp" required value="+57 "
                             class="w-full px-4 py-2 rounded-lg bg-white/20 text-white placeholder-white/70 border border-white/30">
                     </div>
                     <button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-2 rounded-lg transition">
@@ -415,43 +376,144 @@
     </div>
 
     <script>
-        // Recuperación de contraseña con Firebase Auth
-        function recoverPassword() {
-            const email = prompt('Ingrese su correo electrónico para recuperar la contraseña:');
-            if (!email) return;
-            auth.sendPasswordResetEmail(email)
-                .then(() => {
-                    showNotification('Correo de recuperación enviado. Revisa tu bandeja de entrada.');
-                })
-                .catch((error) => {
-                    if (error.code === 'auth/user-not-found') {
-                        showNotification('No existe usuario con ese correo.');
-                    } else if (error.code === 'auth/invalid-email') {
-                        showNotification('Correo electrónico inválido.');
-                    } else {
-                        showNotification('Error al enviar correo de recuperación.');
-                    }
-                });
+        function editUsuario(id) {
+            db.collection('usuarios').doc(id).get().then(doc => {
+                if (!doc.exists) return;
+                const usuario = doc.data();
+                const newNombre = prompt('Nuevo nombre:', usuario.nombre);
+                const newEmail = prompt('Nuevo email:', usuario.email);
+                const newRol = prompt('Nuevo rol:', usuario.rol);
+                const newTelefono = prompt('Nuevo teléfono:', usuario.telefono);
+                if (newNombre && newEmail && newRol && newTelefono) {
+                    db.collection('usuarios').doc(id).update({
+                        nombre: newNombre,
+                        email: newEmail,
+                        rol: newRol,
+                        telefono: newTelefono
+                    }).then(() => {
+                        showNotification('Usuario actualizado en Firebase');
+                    });
+                }
+            });
         }
-                // Data storage
-            let products = [];
-    // Inicializa Firestore
-    const db = firebase.firestore();
-            let customers = [];
-            let sales = [];
-            let orders = [];
-            let inventory = [];
-                // Firebase config
-                const firebaseConfig = {
-                    apiKey: "AIzaSyCQvq350TNtEPQz2rJGsJ2kjEymLqxn5FE",
-                    authDomain: "perfumeria-b3f19.firebaseapp.com",
-                    projectId: "perfumeria-b3f19",
-                    storageBucket: "perfumeria-b3f19.firebasestorage.app",
-                    messagingSenderId: "710258933017",
-                    appId: "1:710258933017:web:8597487f6df0f246ba1988"
-                };
-                firebase.initializeApp(firebaseConfig);
-                const auth = firebase.auth();
+        function deleteUsuario(id) {
+            if (confirm('¿Estás seguro de eliminar este usuario?')) {
+                db.collection('usuarios').doc(id).delete().then(() => {
+                    showNotification('Usuario eliminado de Firebase');
+                });
+            }
+        }
+        // Guardar pedido en Firestore
+        function savePedido(pedido) {
+            db.collection('pedidos').add({
+                producto: pedido.producto,
+                cliente: pedido.cliente,
+                anticipo: pedido.anticipo,
+                fechaEntrega: pedido.fechaEntrega,
+                estado: pedido.estado || 'pendiente',
+                createdAt: new Date()
+            }).then(() => {
+                showNotification('Pedido guardado en Firebase');
+            }).catch((error) => {
+                showNotification('Error al guardar pedido: ' + error.message);
+            });
+        }
+
+        // Guardar usuario en Firestore
+        function saveUsuario(usuario) {
+            db.collection('usuarios').add({
+                nombre: usuario.nombre,
+                email: usuario.email,
+                rol: usuario.rol || 'empleado',
+                telefono: usuario.telefono || '',
+                createdAt: new Date()
+            }).then(() => {
+                showNotification('Usuario guardado en Firebase');
+            }).catch((error) => {
+                showNotification('Error al guardar usuario: ' + error.message);
+            });
+        }
+        // Guardar una venta en Firestore
+        function saveVenta(venta) {
+            db.collection('ventas').add({
+                cliente: venta.cliente,
+                productos: venta.productos,
+                total: venta.total,
+                fecha: new Date(),
+                formaPago: venta.formaPago || '',
+            }).then(() => {
+                showNotification('Venta guardada en Firebase');
+            }).catch((error) => {
+                showNotification('Error al guardar venta: ' + error.message);
+            });
+        }
+
+        // Guardar movimiento de inventario en Firestore
+        function saveInventario(movimiento) {
+            db.collection('inventario').add({
+                producto: movimiento.producto,
+                tipo: movimiento.tipo, // entrada, salida, ajuste
+                cantidad: movimiento.cantidad,
+                fecha: new Date(),
+                nota: movimiento.nota || ''
+            }).then(() => {
+                showNotification('Inventario guardado en Firebase');
+            }).catch((error) => {
+                showNotification('Error al guardar inventario: ' + error.message);
+            });
+        }
+
+        // Guardar proveedor en Firestore
+        function saveProveedor(proveedor) {
+            db.collection('proveedores').add({
+                nombre: proveedor.nombre,
+                telefono: proveedor.telefono || '',
+                email: proveedor.email || '',
+                direccion: proveedor.direccion || '',
+                createdAt: new Date()
+            }).then(() => {
+                showNotification('Proveedor guardado en Firebase');
+            }).catch((error) => {
+                showNotification('Error al guardar proveedor: ' + error.message);
+            });
+        }
+        // Firebase Configuración
+        const firebaseConfig = {
+            apiKey: "AIzaSyCQvq350TNtEPQz2rJGsJ2kjEymLqxn5FE",
+            authDomain: "perfumeria-b3f19.firebaseapp.com",
+            projectId: "perfumeria-b3f19",
+            storageBucket: "perfumeria-b3f19.firebasestorage.app",
+            messagingSenderId: "710258933017",
+            appId: "1:710258933017:web:8597487f6df0f246ba1988"
+        };
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Data storage local (puedes migrar a Firestore luego)
+        let products = JSON.parse(localStorage.getItem('products')) || [];
+        let customers = JSON.parse(localStorage.getItem('customers')) || [];
+        let sales = JSON.parse(localStorage.getItem('sales')) || [];
+        let orders = JSON.parse(localStorage.getItem('orders')) || [];
+        let inventory = JSON.parse(localStorage.getItem('inventory')) || [];
+
+        // Bloquear borrado del indicativo +57 en el campo de teléfono
+        window.addEventListener('DOMContentLoaded', function() {
+            const phoneInput = document.getElementById('customerPhone');
+            phoneInput.addEventListener('keydown', function(e) {
+                // Permitir navegación, copiar, pegar, seleccionar, etc.
+                const allowedKeys = [8, 37, 39, 46, 9, 35, 36]; // backspace, flechas, delete, tab, end, home
+                if (this.selectionStart <= 4 && allowedKeys.includes(e.keyCode)) {
+                    e.preventDefault();
+                }
+            });
+            phoneInput.addEventListener('input', function(e) {
+                if (!this.value.startsWith('+57 ')) {
+                    this.value = '+57 ';
+                }
+            });
+        });
+           // ...existing code...
            // Importar desde Excel
            function importFromExcel(e) {
                const file = e.target.files[0];
@@ -553,74 +615,13 @@
                reader.readAsArrayBuffer(file);
            }
 
-        // Login functions con Firebase Auth
-        function login(e) {
-            e.preventDefault();
-            const email = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            auth.signInWithEmailAndPassword(email, password)
-                .then((userCredential) => {
-                    document.getElementById('loginSection').classList.add('hidden');
-                    document.getElementById('appSection').classList.remove('hidden');
-                    loadDashboard();
-                    updateProductSelects();
-                    updateCustomerSelects();
-                    updateInventorySelects();
-                    checkDuePayments();
-                    showNotification(`¡Bienvenido ${email}!`);
-                })
-                .catch((error) => {
-                    showNotification('Usuario o contraseña incorrectos');
-                });
-        }
-
-        function register() {
-            const email = prompt('Ingrese correo electrónico:');
-            if (!email) return;
-            const password = prompt('Ingrese contraseña:');
-            if (!password) return;
-            auth.createUserWithEmailAndPassword(email, password)
-                .then((userCredential) => {
-                    showNotification('Usuario registrado exitosamente');
-                })
-                .catch((error) => {
-                    if (error.code === 'auth/email-already-in-use') {
-                        showNotification('El correo ya está registrado');
-                    } else if (error.code === 'auth/invalid-email') {
-                        showNotification('Correo electrónico inválido');
-                    } else if (error.code === 'auth/weak-password') {
-                        showNotification('La contraseña es muy débil');
-                    } else {
-                        showNotification('Error al registrar usuario');
-                    }
-                });
-        }
-
-        function logout() {
-            auth.signOut().then(() => {
-                document.getElementById('appSection').classList.add('hidden');
-                document.getElementById('loginSection').classList.remove('hidden');
-                document.getElementById('username').value = '';
-                document.getElementById('password').value = '';
-            });
-        }
-
-        // Initialize app con Firebase Auth
+        // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
-            auth.onAuthStateChanged(function(user) {
-                if (user) {
-                    document.getElementById('loginSection').classList.add('hidden');
-                    document.getElementById('appSection').classList.remove('hidden');
-                    loadDashboard();
-                    updateProductSelects();
-                    updateCustomerSelects();
-                    updateInventorySelects();
-                    checkDuePayments();
-                } else {
-                    document.getElementById('loginSection').classList.remove('hidden');
-                    document.getElementById('appSection').classList.add('hidden');
-                }
-            });
+            loadDashboard();
+            updateProductSelects();
+            updateCustomerSelects();
+            updateInventorySelects();
+            checkDuePayments();
         });
 
         // Navigation
@@ -750,61 +751,72 @@
             const name = document.getElementById('productName').value;
             const cost = parseFloat(document.getElementById('productCost').value);
             const price = parseFloat(document.getElementById('productPrice').value);
-            db.collection("products").add({
+
+            // Guardar en Firestore
+            db.collection('productos').add({
                 name: name,
                 cost: cost,
-                price: price
-            })
-            .then(() => {
-                document.getElementById('productName').value = '';
-                document.getElementById('productCost').value = '';
-                document.getElementById('productPrice').value = '';
-                loadProducts();
-                showNotification('Producto agregado exitosamente');
-            })
-            .catch((error) => {
-                showNotification('Error al agregar producto: ' + error);
+                price: price,
+                stock: 0,
+                createdAt: new Date()
+            }).then(() => {
+                showNotification('Producto guardado en Firebase');
+            }).catch((error) => {
+                showNotification('Error al guardar en Firebase: ' + error.message);
             });
+
+            products.push({ id: Date.now(), name, cost, price });
+            localStorage.setItem('products', JSON.stringify(products));
+
+            // Agregar automáticamente al inventario con 0ml
+            const existingInventory = inventory.find(item => item.product === name);
+            if (!existingInventory) {
+                inventory.push({ product: name, ml: 0, minStock: 10 });
+                localStorage.setItem('inventory', JSON.stringify(inventory));
+            }
+
+            document.getElementById('productName').value = '';
+            document.getElementById('productCost').value = '';
+            document.getElementById('productPrice').value = '';
+
+            loadProducts();
+            loadInventory();
+            updateProductSelects();
+            updateInventorySelects();
+            // showNotification('Producto agregado exitosamente');
         }
 
         function loadProducts() {
-            db.collection("products").get().then((querySnapshot) => {
-                products = [];
-                const table = document.getElementById('productsTable');
-                table.innerHTML = '';
-                querySnapshot.forEach((doc) => {
-                    const product = { id: doc.id, ...doc.data() };
-                    products.push(product);
+            const table = document.getElementById('productsTable');
+            table.innerHTML = '';
+            db.collection('productos').get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    const product = doc.data();
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td class="py-2">${product.name}</td>
                         <td class="py-2">$${Math.round(product.cost).toLocaleString()}</td>
                         <td class="py-2">$${Math.round(product.price).toLocaleString()}</td>
                         <td class="py-2">
-                            <button onclick="editProduct('${product.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
+                            <button onclick="editProduct('${doc.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="deleteProduct('${product.id}')" class="text-red-400 hover:text-red-300">
+                            <button onclick="deleteProduct('${doc.id}')" class="text-red-400 hover:text-red-300">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
                     `;
                     table.appendChild(row);
                 });
-                updateProductSelects();
-                updateInventorySelects();
             });
         }
 
         function deleteProduct(id) {
             if (confirm('¿Estás seguro de eliminar este producto?')) {
-                db.collection("products").doc(id).delete()
-                .then(() => {
+                db.collection('productos').doc(id).delete().then(() => {
                     loadProducts();
-                    showNotification('Producto eliminado');
-                })
-                .catch((error) => {
-                    showNotification('Error al eliminar producto: ' + error);
+                    updateProductSelects();
+                    showNotification('Producto eliminado de Firebase');
                 });
             }
         }
@@ -813,87 +825,112 @@
         function addSale(e) {
             e.preventDefault();
             const productName = document.getElementById('saleProduct').value;
-            const customerId = document.getElementById('saleCustomer').value;
+            const customerId = parseInt(document.getElementById('saleCustomer').value);
             const paymentMethod = document.getElementById('paymentMethod').value;
+
             const product = products.find(p => p.name === productName);
             let total = product.price;
-            let saleData = {};
+            let ventaObj = {};
+
             if (paymentMethod === 'credit') {
                 const months = parseInt(document.getElementById('months').value);
                 const interestRate = parseFloat(document.getElementById('interestRate').value);
                 total = product.price * (1 + (interestRate / 100));
+
                 const advancePayment = parseFloat(document.getElementById('advancePayment').value) || 0;
-                saleData = {
-                    product: productName,
-                    customerId,
-                    paymentMethod,
-                    total,
-                    date: new Date().toISOString(),
+                ventaObj = {
+                    cliente: customerId,
+                    productos: [productName],
+                    total: total,
+                    fecha: new Date().toISOString(),
+                    formaPago: paymentMethod,
                     dueDate: new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString(),
                     paid: advancePayment >= total,
                     remaining: Math.max(0, total - advancePayment),
                     advancePayment: advancePayment
                 };
-            } else {
-                saleData = {
+                sales.push({
+                    id: Date.now(),
                     product: productName,
                     customerId,
                     paymentMethod,
                     total,
-                    date: new Date().toISOString(),
+                    date: ventaObj.fecha,
+                    dueDate: ventaObj.dueDate,
+                    paid: ventaObj.paid,
+                    remaining: ventaObj.remaining,
+                    advancePayment: ventaObj.advancePayment
+                });
+            } else {
+                ventaObj = {
+                    cliente: customerId,
+                    productos: [productName],
+                    total: total,
+                    fecha: new Date().toISOString(),
+                    formaPago: paymentMethod,
                     paid: true
                 };
+                sales.push({
+                    id: Date.now(),
+                    product: productName,
+                    customerId,
+                    paymentMethod,
+                    total,
+                    date: ventaObj.fecha,
+                    paid: true
+                });
             }
-            db.collection("sales").add(saleData)
-            .then(() => {
-                document.getElementById('saleProduct').value = '';
-                document.getElementById('saleCustomer').value = '';
-                document.getElementById('paymentMethod').value = 'cash';
-                document.getElementById('months').value = '';
-                document.getElementById('interestRate').value = '';
-                toggleCreditFields();
-                loadSales();
-                loadDashboard();
-                showNotification('Venta registrada exitosamente');
-            })
-            .catch((error) => {
-                showNotification('Error al registrar venta: ' + error);
-            });
+
+            // Guardar en Firebase
+            saveVenta(ventaObj);
+
+            // Descontar 30ml del inventario
+            updateInventory(productName, 30);
+
+            localStorage.setItem('sales', JSON.stringify(sales));
+
+            // Reset form
+            document.getElementById('saleProduct').value = '';
+            document.getElementById('saleCustomer').value = '';
+            document.getElementById('paymentMethod').value = 'cash';
+            document.getElementById('months').value = '';
+            document.getElementById('interestRate').value = '';
+            toggleCreditFields();
+
+            loadSales();
+            loadDashboard();
+            showNotification('Venta registrada exitosamente');
         }
 
         function loadSales() {
-            db.collection("sales").get().then((querySnapshot) => {
-                sales = [];
-                const table = document.getElementById('salesTable');
-                table.innerHTML = '';
-                querySnapshot.forEach((doc) => {
-                    const sale = { id: doc.id, ...doc.data() };
-                    sales.push(sale);
-                    const customer = customers.find(c => c.id === sale.customerId);
+            const table = document.getElementById('salesTable');
+            table.innerHTML = '';
+            db.collection('ventas').get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    const sale = doc.data();
+                    let customerName = 'Cliente';
+                    const customer = customers.find(c => c.id == sale.cliente);
+                    if (customer) customerName = customer.name;
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td class="py-2">${new Date(sale.date).toLocaleDateString()}</td>
-                        <td class="py-2">${sale.product}</td>
-                        <td class="py-2">${customer?.name || 'Cliente'}</td>
+                        <td class="py-2">${sale.fecha ? new Date(sale.fecha).toLocaleDateString() : '-'}</td>
+                        <td class="py-2">${sale.productos ? sale.productos.join(', ') : '-'}</td>
+                        <td class="py-2">${customerName}</td>
                         <td class="py-2">
-                            <span class="px-2 py-1 rounded text-sm ${sale.paymentMethod === 'credit' ? 'bg-yellow-500/20' : 'bg-green-500/20'}">
-                                ${sale.paymentMethod === 'credit' ? 'Crédito' : 'Efectivo'}
+                            <span class="px-2 py-1 rounded text-sm ${sale.formaPago === 'credit' ? 'bg-yellow-500/20' : 'bg-green-500/20'}">
+                                ${sale.formaPago === 'credit' ? 'Crédito' : 'Efectivo'}
                             </span>
                         </td>
                         <td class="py-2">
-                            ${sale.paymentMethod === 'credit' && sale.advancePayment ? Math.round(sale.advancePayment).toLocaleString() : '-'}
+                            ${sale.formaPago === 'credit' && sale.advancePayment ? Math.round(sale.advancePayment).toLocaleString() : '-'}
                         </td>
                         <td class="py-2">
-                            ${sale.paymentMethod === 'credit' && sale.remaining ? Math.round(sale.remaining).toLocaleString() : '-'}
-                            ${sale.paymentMethod === 'credit' && sale.remaining && sale.remaining > 0 ? 
-                                `<button onclick="markAsPaid('${sale.id}')" class="ml-2 text-green-400 hover:text-green-300">
-                                    <i class="fas fa-money-bill-wave"></i>
-                                </button>` : ''}
+                            ${sale.formaPago === 'credit' && sale.remaining ? Math.round(sale.remaining).toLocaleString() : '-'}
                         </td>
                         <td class="py-2">${Math.round(sale.total).toLocaleString()}</td>
                         <td class="py-2">
-                            <button onclick="returnSale('${sale.id}')" class="text-red-400 hover:text-red-300">
-                                <i class="fas fa-undo"></i>
+                            <button onclick="deleteSale('${doc.id}')" class="text-red-400 hover:text-red-300">
+                                <i class="fas fa-trash"></i>
                             </button>
                         </td>
                     `;
@@ -905,54 +942,67 @@
         // Orders
         function addOrder(e) {
             e.preventDefault();
-            const orderData = {
+            const order = {
+                id: Date.now(),
                 product: document.getElementById('orderProduct').value,
-                customerId: document.getElementById('orderCustomer').value,
+                customerId: parseInt(document.getElementById('orderCustomer').value),
                 advance: parseFloat(document.getElementById('orderAdvance').value),
                 deliveryDate: document.getElementById('orderDate').value,
                 status: 'pendiente'
             };
-            db.collection("orders").add(orderData)
-            .then(() => {
-                document.getElementById('orderProduct').value = '';
-                document.getElementById('orderCustomer').value = '';
-                document.getElementById('orderAdvance').value = '';
-                document.getElementById('orderDate').value = '';
-                loadOrders();
-                showNotification('Encargo registrado exitosamente');
-            })
-            .catch((error) => {
-                showNotification('Error al registrar encargo: ' + error);
+
+            // Guardar en Firebase
+            savePedido({
+                producto: order.product,
+                cliente: order.customerId,
+                anticipo: order.advance,
+                fechaEntrega: order.deliveryDate,
+                estado: order.status
             });
+
+            orders.push(order);
+            localStorage.setItem('orders', JSON.stringify(orders));
+
+            // Reset form
+            document.getElementById('orderProduct').value = '';
+            document.getElementById('orderCustomer').value = '';
+            document.getElementById('orderAdvance').value = '';
+            document.getElementById('orderDate').value = '';
+
+            loadOrders();
+            updateProductSelects();
+            showNotification('Encargo registrado exitosamente');
         }
 
         function loadOrders() {
-            db.collection("orders").get().then((querySnapshot) => {
-                orders = [];
-                const table = document.getElementById('ordersTable');
-                table.innerHTML = '';
-                querySnapshot.forEach((doc) => {
-                    const order = { id: doc.id, ...doc.data() };
-                    orders.push(order);
-                    const customer = customers.find(c => c.id === order.customerId);
+            const table = document.getElementById('ordersTable');
+            table.innerHTML = '';
+            db.collection('pedidos').get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    const order = doc.data();
+                    // Buscar nombre del cliente si existe en local
+                    let customerName = 'Cliente';
+                    const customer = customers.find(c => c.id == order.cliente);
+                    if (customer) customerName = customer.name;
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td class="py-2">${order.product}</td>
-                        <td class="py-2">${customer?.name || 'Cliente'}</td>
-                        <td class="py-2">${new Date(order.deliveryDate).toLocaleDateString()}</td>
+                        <td class="py-2">${order.producto}</td>
+                        <td class="py-2">${customerName}</td>
+                        <td class="py-2">${order.anticipo || '-'}</td>
+                        <td class="py-2">${order.fechaEntrega ? new Date(order.fechaEntrega).toLocaleDateString() : '-'}</td>
                         <td class="py-2">
-                            <span class="px-2 py-1 rounded text-sm ${order.status === 'pendiente' ? 'bg-yellow-500/20' : 'bg-green-500/20'}">
-                                ${order.status}
+                            <span class="px-2 py-1 rounded text-sm ${order.estado === 'pendiente' ? 'bg-yellow-500/20' : 'bg-green-500/20'}">
+                                ${order.estado}
                             </span>
                         </td>
                         <td class="py-2">
-                            <button onclick="editOrder('${order.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
+                            <button onclick="editOrder('${doc.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="completeOrder('${order.id}')" class="text-green-400 hover:text-green-300 mr-2">
+                            <button onclick="completeOrder('${doc.id}')" class="text-green-400 hover:text-green-300 mr-2">
                                 <i class="fas fa-check"></i>
                             </button>
-                            <button onclick="deleteOrder('${order.id}')" class="text-red-400 hover:text-red-300">
+                            <button onclick="deleteOrder('${doc.id}')" class="text-red-400 hover:text-red-300">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -997,13 +1047,9 @@
 
         function deleteOrder(id) {
             if (confirm('¿Estás seguro de eliminar este encargo?')) {
-                db.collection("orders").doc(id).delete()
-                .then(() => {
+                db.collection('pedidos').doc(id).delete().then(() => {
                     loadOrders();
-                    showNotification('Encargo eliminado');
-                })
-                .catch((error) => {
-                    showNotification('Error al eliminar encargo: ' + error);
+                    showNotification('Encargo eliminado de Firebase');
                 });
             }
         }
@@ -1015,110 +1061,115 @@
             if (!phone.startsWith('+57')) {
                 phone = '+57' + phone.replace(/^0+/, '');
             }
-            db.collection("customers").add({
+            const customer = {
+                id: Date.now(),
                 name: document.getElementById('customerName').value,
                 phone: phone
-            })
-            .then(() => {
-                document.getElementById('customerName').value = '';
-                document.getElementById('customerPhone').value = '+57';
-                loadCustomers();
-                showNotification('Cliente agregado exitosamente');
-            })
-            .catch((error) => {
-                showNotification('Error al agregar cliente: ' + error);
+            };
+
+            // Guardar en Firestore
+            db.collection('clientes').add({
+                name: customer.name,
+                phone: customer.phone,
+                createdAt: new Date()
+            }).then(() => {
+                showNotification('Cliente guardado en Firebase');
+            }).catch((error) => {
+                showNotification('Error al guardar en Firebase: ' + error.message);
             });
+
+            customers.push(customer);
+            localStorage.setItem('customers', JSON.stringify(customers));
+
+            document.getElementById('customerName').value = '';
+            document.getElementById('customerPhone').value = '+57 ';
+
+            loadCustomers();
+            updateCustomerSelects();
+            // showNotification('Cliente agregado exitosamente');
         }
 
         function loadCustomers() {
-            db.collection("customers").get().then((querySnapshot) => {
-                customers = [];
-                const table = document.getElementById('customersTable');
-                table.innerHTML = '';
-                querySnapshot.forEach((doc) => {
-                    const customer = { id: doc.id, ...doc.data() };
-                    customers.push(customer);
+            const table = document.getElementById('customersTable');
+            table.innerHTML = '';
+            db.collection('clientes').get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    const customer = doc.data();
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td class="py-2">${customer.name}</td>
                         <td class="py-2">${customer.phone}</td>
                         <td class="py-2">
-                            <button onclick="editCustomer('${customer.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
+                            <button onclick="editCustomer('${doc.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="sendWhatsapp('${customer.id}')" class="text-green-400 hover:text-green-300 mr-2">
+                            <button onclick="sendWhatsapp('${customer.phone}')" class="text-green-400 hover:text-green-300 mr-2">
                                 <i class="fab fa-whatsapp"></i>
                             </button>
-                            <button onclick="deleteCustomer('${customer.id}')" class="text-red-400 hover:text-red-300">
+                            <button onclick="deleteCustomer('${doc.id}')" class="text-red-400 hover:text-red-300">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
                     `;
                     table.appendChild(row);
                 });
-                updateCustomerSelects();
             });
         }
 
         function deleteCustomer(id) {
             if (confirm('¿Estás seguro de eliminar este cliente?')) {
-                db.collection("customers").doc(id).delete()
-                .then(() => {
+                db.collection('clientes').doc(id).delete().then(() => {
                     loadCustomers();
-                    showNotification('Cliente eliminado');
-                })
-                .catch((error) => {
-                    showNotification('Error al eliminar cliente: ' + error);
+                    updateCustomerSelects();
+                    showNotification('Cliente eliminado de Firebase');
                 });
             }
         }
 
         // Product editing
         function editProduct(id) {
-            const product = products.find(p => p.id === id);
-            if (!product) return;
-            const newName = prompt('Nuevo nombre:', product.name);
-            const newCost = prompt('Nuevo costo:', product.cost);
-            const newPrice = prompt('Nuevo precio:', product.price);
-            if (newName && newCost && newPrice) {
-                db.collection("products").doc(id).update({
-                    name: newName,
-                    cost: parseFloat(newCost),
-                    price: parseFloat(newPrice)
-                })
-                .then(() => {
-                    loadProducts();
-                    showNotification('Producto actualizado');
-                })
-                .catch((error) => {
-                    showNotification('Error al actualizar producto: ' + error);
-                });
-            }
+            db.collection('productos').doc(id).get().then(doc => {
+                if (!doc.exists) return;
+                const product = doc.data();
+                const newName = prompt('Nuevo nombre:', product.name);
+                const newCost = prompt('Nuevo costo:', product.cost);
+                const newPrice = prompt('Nuevo precio:', product.price);
+                if (newName && newCost && newPrice) {
+                    db.collection('productos').doc(id).update({
+                        name: newName,
+                        cost: parseFloat(newCost),
+                        price: parseFloat(newPrice)
+                    }).then(() => {
+                        loadProducts();
+                        updateProductSelects();
+                        showNotification('Producto actualizado en Firebase');
+                    });
+                }
+            });
         }
 
         // Customer editing
         function editCustomer(id) {
-            const customer = customers.find(c => c.id === id);
-            if (!customer) return;
-            const newName = prompt('Nuevo nombre:', customer.name);
-            const newPhone = prompt('Nuevo teléfono:', customer.phone);
-            if (newName && newPhone) {
-                let phoneEdit = newPhone.trim();
-                if (!phoneEdit.startsWith('+57')) {
-                    phoneEdit = '+57' + phoneEdit.replace(/^0+/, '');
+            db.collection('clientes').doc(id).get().then(doc => {
+                if (!doc.exists) return;
+                const customer = doc.data();
+                const newName = prompt('Nuevo nombre:', customer.name);
+                const newPhone = prompt('Nuevo teléfono:', customer.phone);
+                if (newName && newPhone) {
+                    let phoneEdit = newPhone.trim();
+                    if (!phoneEdit.startsWith('+57')) {
+                        phoneEdit = '+57' + phoneEdit.replace(/^0+/, '');
+                    }
+                    db.collection('clientes').doc(id).update({
+                        name: newName,
+                        phone: phoneEdit
+                    }).then(() => {
+                        loadCustomers();
+                        updateCustomerSelects();
+                        showNotification('Cliente actualizado en Firebase');
+                    });
                 }
-                db.collection("customers").doc(id).update({
-                    name: newName,
-                    phone: phoneEdit
-                })
-                .then(() => {
-                    loadCustomers();
-                    showNotification('Cliente actualizado');
-                })
-                .catch((error) => {
-                    showNotification('Error al actualizar cliente: ' + error);
-                });
-            }
+            });
         }
 
         // Order editing
@@ -1130,19 +1181,13 @@
             const newAdvance = prompt('Nuevo anticipo:', order.advance);
             const newDate = prompt('Nueva fecha de entrega (YYYY-MM-DD):', order.deliveryDate);
             if (newProduct && newCustomerId && newAdvance && newDate) {
-                db.collection("orders").doc(id).update({
-                    product: newProduct,
-                    customerId: newCustomerId,
-                    advance: parseFloat(newAdvance),
-                    deliveryDate: newDate
-                })
-                .then(() => {
-                    loadOrders();
-                    showNotification('Encargo actualizado');
-                })
-                .catch((error) => {
-                    showNotification('Error al actualizar encargo: ' + error);
-                });
+                order.product = newProduct;
+                order.customerId = parseInt(newCustomerId);
+                order.advance = parseFloat(newAdvance);
+                order.deliveryDate = newDate;
+                localStorage.setItem('orders', JSON.stringify(orders));
+                loadOrders();
+                showNotification('Encargo actualizado');
             }
         }
 
@@ -1176,57 +1221,65 @@
             const productName = document.getElementById('inventoryProduct').value;
             const ml = parseInt(document.getElementById('inventoryMl').value);
             const minStock = parseInt(document.getElementById('inventoryMin').value);
-            db.collection("inventory").add({
-                product: productName,
-                ml: ml,
-                minStock: minStock
-            })
-            .then(() => {
-                document.getElementById('inventoryProduct').value = '';
-                document.getElementById('inventoryMl').value = '';
-                document.getElementById('inventoryMin').value = '';
-                loadInventory();
-                showNotification('Inventario actualizado');
-            })
-            .catch((error) => {
-                showNotification('Error al agregar inventario: ' + error);
+
+            const existingItem = inventory.find(item => item.product === productName);
+            if (existingItem) {
+                existingItem.ml += ml;
+                existingItem.minStock = minStock;
+            } else {
+                inventory.push({ product: productName, ml, minStock });
+            }
+
+            // Guardar en Firebase
+            saveInventario({
+                producto: productName,
+                tipo: 'entrada',
+                cantidad: ml,
+                nota: 'Ingreso manual',
             });
+
+            localStorage.setItem('inventory', JSON.stringify(inventory));
+
+            document.getElementById('inventoryProduct').value = '';
+            document.getElementById('inventoryMl').value = '';
+            document.getElementById('inventoryMin').value = '';
+
+            loadInventory();
+            updateInventorySelects();
+            showNotification('Inventario actualizado');
         }
 
         function loadInventory() {
-            db.collection("inventory").get().then((querySnapshot) => {
-                inventory = [];
-                const table = document.getElementById('inventoryTable');
-                table.innerHTML = '';
-                querySnapshot.forEach((doc) => {
-                    const item = { id: doc.id, ...doc.data() };
-                    inventory.push(item);
-                    const isLowStock = item.ml <= item.minStock;
+            const table = document.getElementById('inventoryTable');
+            table.innerHTML = '';
+            db.collection('inventario').get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    const item = doc.data();
+                    const isLowStock = item.cantidad <= (item.minStock || 10);
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td class="py-2">${item.product}</td>
-                        <td class="py-2">${item.ml} ml</td>
-                        <td class="py-2">${item.minStock} ml</td>
+                        <td class="py-2">${item.producto || item.product}</td>
+                        <td class="py-2">${item.cantidad || item.ml} ml</td>
+                        <td class="py-2">${item.minStock || 10} ml</td>
                         <td class="py-2">
                             <span class="px-2 py-1 rounded text-sm ${isLowStock ? 'bg-red-500/20' : 'bg-green-500/20'}">
                                 ${isLowStock ? 'Bajo stock' : 'Disponible'}
                             </span>
                         </td>
                         <td class="py-2">
-                            <button onclick="editInventoryItem('${item.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
+                            <button onclick="editInventoryItem('${doc.id}')" class="text-blue-400 hover:text-blue-300 mr-2">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="addStock('${item.id}')" class="text-green-400 hover:text-green-300 mr-2">
+                            <button onclick="addStock('${doc.id}')" class="text-green-400 hover:text-green-300 mr-2">
                                 <i class="fas fa-plus"></i>
                             </button>
-                            <button onclick="deleteInventoryItem('${item.id}')" class="text-red-400 hover:text-red-300">
+                            <button onclick="deleteInventoryItem('${doc.id}')" class="text-red-400 hover:text-red-300">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
                     `;
                     table.appendChild(row);
                 });
-                updateInventorySelects();
             });
         }
 
@@ -1238,65 +1291,67 @@
             }
         }
 
-        function editInventoryItem(id) {
-            const item = inventory.find(i => i.id === id);
+        function editInventoryItem(productName) {
+            const item = inventory.find(i => i.product === productName);
             if (!item) return;
             const newMl = prompt('Nueva cantidad (ml):', item.ml);
             const newMin = prompt('Nuevo stock mínimo (ml):', item.minStock);
             if (newMl && newMin) {
-                db.collection("inventory").doc(id).update({
-                    ml: parseInt(newMl),
-                    minStock: parseInt(newMin)
-                })
-                .then(() => {
-                    loadInventory();
-                    showNotification('Inventario actualizado');
-                })
-                .catch((error) => {
-                    showNotification('Error al actualizar inventario: ' + error);
-                });
+                item.ml = parseInt(newMl);
+                item.minStock = parseInt(newMin);
+                localStorage.setItem('inventory', JSON.stringify(inventory));
+                loadInventory();
+                showNotification('Inventario actualizado');
             }
         }
 
-        function addStock(id) {
-            const item = inventory.find(i => i.id === id);
+        function addStock(productName) {
+            const item = inventory.find(i => i.product === productName);
             if (item) {
                 const mlToAdd = prompt('Mililitros a agregar:', '100');
                 if (mlToAdd) {
-                    db.collection("inventory").doc(id).update({
-                        ml: item.ml + parseInt(mlToAdd)
-                    })
-                    .then(() => {
-                        loadInventory();
-                        showNotification('Stock actualizado');
-                    })
-                    .catch((error) => {
-                        showNotification('Error al actualizar stock: ' + error);
-                    });
+                    item.ml += parseInt(mlToAdd);
+                    localStorage.setItem('inventory', JSON.stringify(inventory));
+                    loadInventory();
+                    showNotification('Stock actualizado');
                 }
             }
         }
 
-        function deleteInventoryItem(id) {
+        function deleteInventoryItem(productName) {
             if (confirm('¿Estás seguro de eliminar este producto del inventario?')) {
-                db.collection("inventory").doc(id).delete()
-                .then(() => {
+                db.collection('inventario').doc(productName).delete().then(() => {
                     loadInventory();
-                    showNotification('Producto eliminado del inventario');
-                })
-                .catch((error) => {
-                    showNotification('Error al eliminar inventario: ' + error);
+                    showNotification('Producto eliminado del inventario en Firebase');
                 });
             }
         }
 
         function deleteSale(id) {
             if (confirm('¿Estás seguro de eliminar esta venta?')) {
-                sales = sales.filter(s => s.id !== id);
-                localStorage.setItem('sales', JSON.stringify(sales));
-                loadSales();
-                loadDashboard();
-                showNotification('Venta eliminada');
+                // Obtener la venta antes de eliminar
+                db.collection('ventas').doc(id).get().then(doc => {
+                    if (!doc.exists) return;
+                    const sale = doc.data();
+                    // Restaurar inventario si hay producto
+                    if (sale.productos && sale.productos.length > 0) {
+                        const producto = sale.productos[0];
+                        // Buscar el documento de inventario por nombre de producto
+                        db.collection('inventario').where('producto', '==', producto).get().then(invSnap => {
+                            invSnap.forEach(invDoc => {
+                                const item = invDoc.data();
+                                const nuevaCantidad = (item.cantidad || 0) + 30;
+                                db.collection('inventario').doc(invDoc.id).update({ cantidad: nuevaCantidad });
+                            });
+                        });
+                    }
+                    // Eliminar la venta
+                    db.collection('ventas').doc(id).delete().then(() => {
+                        loadSales();
+                        loadDashboard();
+                        showNotification('Venta eliminada y producto restaurado en inventario');
+                    });
+                });
             }
         }
 
